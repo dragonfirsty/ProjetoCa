@@ -32,4 +32,4 @@ O grande diferencial deste projeto é o seu sistema de persistência inteligente
    git clone [https://github.com/dragonfirsty/ProjetoCa.git](https://github.com/dragonfirsty/ProjetoCa.git)
 2. Importe o projeto na sua IDE de preferência (recomendado: Eclipse).
 3. Crie uma pasta lib na raiz do projeto, cole o arquivo sqlite-jdbc.jar dentro dela e adicione a biblioteca ao Build Path do projeto.
-4.Execute o arquivo Main.java. O sistema criará o banco de dados banco_rpg.db automaticamente na raiz do projeto e fará as validações de CRUD no console.
+4. Execute o arquivo Main.java. O sistema criará o banco de dados banco_rpg.db automaticamente na raiz do projeto e fará as validações de CRUD no console.
