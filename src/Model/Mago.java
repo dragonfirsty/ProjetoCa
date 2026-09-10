@@ -4,11 +4,14 @@ public class Mago extends Personagem {
 	
 	private Integer mana;
 	
-	public Mago(Integer vida, String nome, Integer forca, Integer mana, Integer id) {
-		super(vida, nome, forca,id);
-		this.mana = mana;
-		// TODO Auto-generated constructor stub
-	}
+	public Mago(Integer vida, String nome, Integer forca, Integer mana) {
+        super(vida, nome, forca);
+        this.mana = mana;
+    }
+	public Mago(Integer id, Integer vida, String nome, Integer forca, Integer mana) {
+        super(id, vida, nome, forca);
+        this.mana = mana;
+    }
 	
 	public boolean recarregarMana() {
 		if(this.mana < 100) {

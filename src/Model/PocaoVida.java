@@ -1,11 +1,15 @@
 package Model;
 
 public class PocaoVida extends Pocao{
+	public PocaoVida(String nome, Integer peso, Integer pontos, Integer id) {
+		super(nome,peso, pontos, id);
+		
+	}
+	
 	public PocaoVida(String nome, Integer peso, Integer pontos) {
 		super(nome,peso, pontos);
 		
 	}
-	
 	public PocaoVida() {
 		super();
 		this.nome = "Poção de vida";

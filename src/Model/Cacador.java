@@ -5,10 +5,18 @@ public class Cacador extends Personagem{
 	private Integer destreza;
 	protected boolean mirando;
 	
-	public Cacador(Integer vida, String nome, Integer forca, Integer destreza, Integer id) {
-		super(vida, nome, forca,id);
-		this.destreza = destreza;
-	}
+	public Cacador(Integer vida, String nome, Integer forca, Integer destreza) {
+        super(vida, nome, forca);
+        this.destreza = destreza;
+        this.mirando = false;
+    }
+	public Cacador(Integer id, Integer vida, String nome, Integer forca, Integer destreza) {
+        super(id, vida, nome, forca);
+        this.destreza = destreza;
+        this.mirando = false;
+    }
+	
+	
 	public void mirar() {
 		if(mirando == false) {
 			mirando = true;

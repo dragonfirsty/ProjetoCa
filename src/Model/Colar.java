@@ -6,6 +6,11 @@ public class Colar extends Item {
 		super(nome, peso,id);
 		this.pontos = pontos;
 	}
+	public Colar(String nome, Integer peso, Integer pontos) {
+		super(nome, peso);
+		this.pontos = pontos;
+	}
+	
 	public Colar() {
 		super();
 		this.pontos = 30;

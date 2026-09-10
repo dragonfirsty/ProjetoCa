@@ -10,13 +10,21 @@ public abstract class Personagem {
 	protected Integer forca;
 	private List<Item> itens;
 	
-	public Personagem(Integer vida, String nome, Integer forca,Integer id) {
+	public Personagem(Integer vida, String nome, Integer forca) {
 		this.vida = vida;
 		this.nome = nome;
 		this.forca = forca;
 		this.itens = new ArrayList<Item>();
-		this.id = id;
+		this.id = 0;
 	}
+	
+	public Personagem(Integer id, Integer vida, String nome, Integer forca) {
+        this.id = id;
+        this.vida = vida;
+        this.nome = nome;
+        this.forca = forca;
+		this.itens = new ArrayList<Item>();
+    }
 	
 	public void adicionarItem(Item item) {
         this.itens.add(item);

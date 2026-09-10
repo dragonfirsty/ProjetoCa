@@ -6,6 +6,12 @@ public abstract class Item {
 	private Integer peso;
 	protected Integer pontos;
 	
+	public Item(String nome, Integer peso) {
+        this.nome = nome;
+        this.peso = peso;
+        this.id = 0;
+    }
+	
 	public Item(String nome, Integer peso,Integer id) {
 		super();
 		this.nome = nome;
@@ -13,6 +19,7 @@ public abstract class Item {
 		this.id = id;
 	}
 	public Item() {
+		this.id = 0;
         this.nome = "Item Não identificado";
         this.peso = 1;
     }

@@ -2,6 +2,11 @@ package Model;
 
 public class PocaoMana extends Pocao{
 	
+	public PocaoMana(String nome, Integer peso, Integer pontos, Integer id) {
+		super(nome,peso, pontos, id);
+		
+	}
+
 	public PocaoMana(String nome, Integer peso, Integer pontos) {
 		super(nome,peso, pontos);
 		
