@@ -1,14 +1,16 @@
 package Model;
 
 public abstract class Item {
+	private Integer id;
 	protected String nome;
 	private Integer peso;
 	protected Integer pontos;
 	
-	public Item(String nome, Integer peso) {
+	public Item(String nome, Integer peso,Integer id) {
 		super();
 		this.nome = nome;
 		this.peso = peso;
+		this.id = id;
 	}
 	public Item() {
         this.nome = "Item Não identificado";

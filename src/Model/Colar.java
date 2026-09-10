@@ -2,8 +2,8 @@ package Model;
 
 public class Colar extends Item {
 
-	public Colar(String nome, Integer peso, Integer pontos) {
-		super(nome, peso);
+	public Colar(String nome, Integer peso, Integer pontos, Integer id) {
+		super(nome, peso,id);
 		this.pontos = pontos;
 	}
 	public Colar() {

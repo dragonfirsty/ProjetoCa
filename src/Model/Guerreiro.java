@@ -3,8 +3,8 @@ package Model;
 public class Guerreiro extends Personagem{
 
 	
-	public Guerreiro(Integer vida, String nome, Integer forca) {
-		super(vida, nome, forca);
+	public Guerreiro(Integer vida, String nome, Integer forca,Integer id) {
+		super(vida, nome, forca,id);
 		// TODO Auto-generated constructor stub
 	}
 

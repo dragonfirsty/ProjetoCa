@@ -4,8 +4,8 @@ public class Mago extends Personagem {
 	
 	private Integer mana;
 	
-	public Mago(Integer vida, String nome, Integer forca, Integer mana) {
-		super(vida, nome, forca);
+	public Mago(Integer vida, String nome, Integer forca, Integer mana, Integer id) {
+		super(vida, nome, forca,id);
 		this.mana = mana;
 		// TODO Auto-generated constructor stub
 	}

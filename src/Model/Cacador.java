@@ -5,8 +5,8 @@ public class Cacador extends Personagem{
 	private Integer destreza;
 	protected boolean mirando;
 	
-	public Cacador(Integer vida, String nome, Integer forca, Integer destreza) {
-		super(vida, nome, forca);
+	public Cacador(Integer vida, String nome, Integer forca, Integer destreza, Integer id) {
+		super(vida, nome, forca,id);
 		this.destreza = destreza;
 	}
 	public void mirar() {

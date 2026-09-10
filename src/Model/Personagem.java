@@ -4,16 +4,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 public abstract class Personagem {
+	private int id;
 	protected Integer vida;
 	protected String nome;
 	protected Integer forca;
 	private List<Item> itens;
 	
-	public Personagem(Integer vida, String nome, Integer forca) {
+	public Personagem(Integer vida, String nome, Integer forca,Integer id) {
 		this.vida = vida;
 		this.nome = nome;
 		this.forca = forca;
 		this.itens = new ArrayList<Item>();
+		this.id = id;
 	}
 	
 	public void adicionarItem(Item item) {

@@ -2,8 +2,8 @@ package Model;
 
 public class Arma extends Item  {
 
-	public Arma(String nome, Integer peso, Integer pontos) {
-		super(nome, peso);
+	public Arma(String nome, Integer peso, Integer pontos, Integer id) {
+		super(nome, peso,id);
 		this.pontos = pontos;
 	}
 	public Arma() {
