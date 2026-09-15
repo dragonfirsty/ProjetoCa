@@ -66,6 +66,7 @@ public class GenericDAO {
 
         executarComando(sql.toString());
     }
+    
     public void selecionarTodosObjeto(Object o) {
     	Class<?> clazz = o.getClass();
         String nomeClasse = clazz.getSimpleName().toLowerCase();
@@ -97,9 +98,123 @@ public class GenericDAO {
                System.out.println("Erro na consulta: " + e.getMessage());
            }
     }
+    public void selecionarUmObjeto(Object o) {
+        Class<?> clazz = o.getClass();
+        String nomeClasse = clazz.getSimpleName().toLowerCase();
+        List<Field> campos = getAllFields(clazz);
+        Object idValor = null;
+        
+        for (Field campo : campos) {
+            if (campo.getName().equals("id")) {
+                campo.setAccessible(true);
+                try {
+                    idValor = campo.get(o);
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+                break;
+            }
+        }
 
+        String sql = "SELECT * FROM " + nomeClasse + " WHERE id = " + idValor + ";";
+        System.out.println("\n--- Buscando " + nomeClasse.toUpperCase() + " com ID: " + idValor + " ---");
+        
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:banco_rpg.db");
+             Statement stmt = conn.createStatement();
+             java.sql.ResultSet rs = stmt.executeQuery(sql)) {
+            
+            java.sql.ResultSetMetaData metaData = rs.getMetaData();
+            int numeroDeColunas = metaData.getColumnCount();
+            
+            if (rs.next()) {
+                StringBuilder linha = new StringBuilder("Encontrado -> ");
+                for (int i = 1; i <= numeroDeColunas; i++) {
+                    linha.append(metaData.getColumnName(i)).append(": ").append(rs.getString(i));
+                    if (i < numeroDeColunas) linha.append(" | ");
+                }
+                System.out.println(linha.toString());
+            } else {
+                System.out.println("Nenhum registro encontrado com o ID " + idValor);
+            }
+            
+        } catch (Exception e) {
+            System.out.println("Erro na consulta: " + e.getMessage());
+        }
+    }
+    
+    public void atualizarObjeto(Object o) {
+        Class<?> clazz = o.getClass();
+        String nomeClasse = clazz.getSimpleName().toLowerCase();
+        List<Field> campos = getAllFields(clazz);
+        
+        StringBuilder sql = new StringBuilder("UPDATE ");
+        sql.append(nomeClasse).append(" SET ");
+        
+        Object idValor = null;
+
+        for (int i = 0; i < campos.size(); i++) {
+            Field campo = campos.get(i);
+            String nomeCampo = campo.getName();
+            
+            campo.setAccessible(true);
+            try {
+                Object valor = campo.get(o);
+                
+                if (nomeCampo.equals("id")) {
+                    idValor = valor;
+                    continue; 
+                }
+                if (nomeCampo.equals("itens") || nomeCampo.equals("mirando")) {
+                    continue;
+                }
+                sql.append(nomeCampo).append(" = ");
+                if (valor instanceof String) {
+                    sql.append("'").append(valor).append("'");
+                } else {
+                    sql.append(valor);
+                }
+                sql.append(", ");
+                
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
+            }
+        }
+        
+     
+        if (sql.toString().endsWith(", ")) {
+            sql.setLength(sql.length() - 2);
+        }
+        
+       
+        sql.append(" WHERE id = ").append(idValor).append(";");
+        
+        executarComando(sql.toString());
+    }
+    
+    public void removerObjeto(Object o) {
+        Class<?> clazz = o.getClass();
+        String nomeClasse = clazz.getSimpleName().toLowerCase();
+        List<Field> campos = getAllFields(clazz);
+        Object idValor = null;
+
+        for (Field campo : campos) {
+            if (campo.getName().equals("id")) {
+                campo.setAccessible(true);
+                try {
+                    idValor = campo.get(o);
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+                break;
+            }
+        }
+
+        String sql = "DELETE FROM " + nomeClasse + " WHERE id = " + idValor + ";";
+        executarComando(sql);
+    }
+    
+    
     private void executarComando(String sql) {
-        // Conexão Serverless: Cria um arquivo chamado 'banco_rpg.db'
         String url = "jdbc:sqlite:banco_rpg.db";
 
         try (Connection conn = DriverManager.getConnection(url);
