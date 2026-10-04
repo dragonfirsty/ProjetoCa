@@ -94,17 +94,21 @@ Campos estaticos, sinteticos, anotados com `@Transient` e tipos nao suportados n
 2. Verifique se `lib/sqlite-jdbc-3.53.4.0.jar` esta no Build Path.
 3. Execute `src/Main.java`.
 
-O `Main` cria a tabela de `Cacador` por Reflection, insere um registro e imprime os dados encontrados.
+O `Main` cria por Reflection as tabelas de `Guerreiro`, `Mago` e `Cacador`, aplica uma arma e poções aos personagens, imprime seus atributos atualizados, insere um registro de cada personagem e mostra os dados salvos.
 
 ### Pelo terminal
 
 ```bash
-rm -rf bin/Model bin/Main.class
-javac -source 8 -target 8 -cp lib/sqlite-jdbc-3.53.4.0.jar -d bin src/Model/*.java src/Main.java
-java -cp bin:lib/sqlite-jdbc-3.53.4.0.jar Main
+rm -rf bin/Model bin/Main.class banco_rpg.db
+javac --release 8 -Xlint:-options -cp lib/sqlite-jdbc-3.53.4.0.jar -d bin src/Model/*.java src/Main.java
+java --enable-native-access=ALL-UNNAMED -cp bin:lib/sqlite-jdbc-3.53.4.0.jar Main
 ```
 
-O arquivo `banco_rpg.db` e criado automaticamente no diretorio raiz na primeira execucao.
+O arquivo `banco_rpg.db` e criado automaticamente no diretorio raiz. A saida esperada mostra Aragorn com forca 32, Gandalf com mana 50 e Robin com vida 115 e forca 23, alem de um registro nas tabelas `guerreiro`, `mago` e `cacador`.
+
+O parametro `--enable-native-access=ALL-UNNAMED` evita o aviso do driver SQLite em JDKs mais novos. Em Java 8, execute o mesmo comando sem esse parametro.
+
+Para executar novamente sem acumular registros do teste anterior, remova o arquivo `banco_rpg.db` antes de iniciar o programa.
 
 ## Observacao sobre consultas tipadas
 

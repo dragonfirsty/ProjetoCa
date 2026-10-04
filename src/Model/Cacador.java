@@ -28,7 +28,7 @@ public class Cacador extends Personagem{
 	@Override
 	public boolean atacar(Personagem p) {
 		if(p.getVida() > 0){
-			if(mirando = true) {
+			if(mirando) {
 			p.setVida(p.getVida() - (this.forca + this.destreza * 2));
 			this.mirando = false;
 			return true;
