@@ -3,6 +3,7 @@ package Model;
 public class Cacador extends Personagem{
 	
 	private Integer destreza;
+	@Transient
 	protected boolean mirando;
 	
 	public Cacador(Integer vida, String nome, Integer forca, Integer destreza) {

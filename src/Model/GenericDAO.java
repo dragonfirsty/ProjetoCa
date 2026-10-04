@@ -1,230 +1,291 @@
 package Model;
+
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.Statement;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class GenericDAO {
+    private static final String URL = "jdbc:sqlite:banco_rpg.db";
 
-    // Método para buscar os atributos da classe filha e das classes pai
-    private List<Field> getAllFields(Class<?> clazz) {
-        List<Field> fields = new ArrayList<>();
-        while (clazz != null && clazz != Object.class) {
-            fields.addAll(Arrays.asList(clazz.getDeclaredFields()));
-            clazz = clazz.getSuperclass();
+    public void inserirObjeto(Object objeto) {
+        Class<?> tipo = objeto.getClass();
+        List<Field> campos = camposPersistiveis(tipo);
+        List<Field> inseriveis = new ArrayList<Field>();
+        for (Field campo : campos) if (!ehId(campo) || !idAutoIncremental(campo)) inseriveis.add(campo);
+        if (inseriveis.isEmpty()) {
+            executar("INSERT INTO " + nomeTabela(tipo) + " DEFAULT VALUES", new Object[0]);
+            return;
         }
-        return fields;
-    }
-
-    public void inserirObjeto(Object o) {
-        Class<?> clazz = o.getClass();
-        String nomeClasse = clazz.getSimpleName().toLowerCase();
-
-        StringBuilder sql = new StringBuilder("INSERT INTO ");
-        sql.append(nomeClasse).append(" (");
-
-        List<Field> campos = getAllFields(clazz);
-
-        // laço de colunas
-        for (int i = 0; i < campos.size(); i++) {
-            // pula valores que não devem entrar
-            if (campos.get(i).getName().equals("itens") || campos.get(i).getName().equals("mirando") ||  campos.get(i).getName().equals("id")) continue;
-            
-            sql.append(campos.get(i).getName());
-            if (i < campos.size() - 1) sql.append(", ");
-        }
-
-        //tira virgula caso o valor tenha pulado
-        if (sql.toString().endsWith(", ")) sql.setLength(sql.length() - 2);
-        
+        StringBuilder sql = new StringBuilder("INSERT INTO ").append(nomeTabela(tipo)).append(" (");
+        adicionarNomes(sql, inseriveis);
         sql.append(") VALUES (");
+        adicionarParametros(sql, inseriveis.size());
+        sql.append(")");
+        executar(sql.toString(), valores(objeto, inseriveis));
+    }
 
-        // laço dos valores para as colunas
+    public <T> int atualizarCampo(Class<T> tipo, Object id, String nomeCampo, Object valor) {
+        Field campo = campoPorNome(tipo, nomeCampo);
+        Field campoId = campoId(tipo);
+        String sql = "UPDATE " + nomeTabela(tipo) + " SET " + nomeColuna(campo) + " = ? WHERE "
+                + nomeColuna(campoId) + " = ?";
+        return executar(sql, new Object[] { valor, id });
+    }
+
+    public <T> int removerObjeto(Class<T> tipo, Object id) {
+        String sql = "DELETE FROM " + nomeTabela(tipo) + " WHERE " + nomeColuna(campoId(tipo)) + " = ?";
+        return executar(sql, new Object[] { id });
+    }
+
+    public void removerObjeto(Object objeto) {
+        Field id = campoId(objeto.getClass());
+        removerObjeto(objeto.getClass(), valor(objeto, id));
+    }
+
+    public <T> List<T> selecionarTodosObjeto(Class<T> tipo) {
+        String sql = "SELECT * FROM " + nomeTabela(tipo);
+        List<T> resultado = new ArrayList<T>();
+        try (Connection conexao = conectar(); PreparedStatement comando = conexao.prepareStatement(sql);
+             ResultSet dados = comando.executeQuery()) {
+            while (dados.next()) resultado.add(mapear(tipo, dados));
+            return resultado;
+        } catch (SQLException e) {
+            throw new IllegalStateException("Erro ao selecionar registros", e);
+        }
+    }
+
+    public void selecionarTodosObjeto(Object objeto) {
+        imprimirRegistros("SELECT * FROM " + nomeTabela(objeto.getClass()), "Lendo a tabela");
+    }
+
+    public <T> T selecionarUmObjeto(Class<T> tipo, Object id) {
+        String sql = "SELECT * FROM " + nomeTabela(tipo) + " WHERE " + nomeColuna(campoId(tipo)) + " = ?";
+        try (Connection conexao = conectar(); PreparedStatement comando = conexao.prepareStatement(sql)) {
+            comando.setObject(1, id);
+            try (ResultSet dados = comando.executeQuery()) {
+                return dados.next() ? mapear(tipo, dados) : null;
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Erro ao selecionar registro", e);
+        }
+    }
+
+    public void selecionarUmObjeto(Object objeto) {
+        Field id = campoId(objeto.getClass());
+        imprimirRegistros("SELECT * FROM " + nomeTabela(objeto.getClass()) + " WHERE " + nomeColuna(id) + " = ?",
+                "Registro encontrado", valor(objeto, id));
+    }
+
+    public void atualizarObjeto(Object objeto) {
+        Class<?> tipo = objeto.getClass();
+        Field id = campoId(tipo);
+        List<Field> atualizaveis = new ArrayList<Field>();
+        for (Field campo : camposPersistiveis(tipo)) if (!ehId(campo)) atualizaveis.add(campo);
+        if (atualizaveis.isEmpty()) return;
+        StringBuilder sql = new StringBuilder("UPDATE ").append(nomeTabela(tipo)).append(" SET ");
+        for (int i = 0; i < atualizaveis.size(); i++) {
+            if (i > 0) sql.append(", ");
+            sql.append(nomeColuna(atualizaveis.get(i))).append(" = ?");
+        }
+        sql.append(" WHERE ").append(nomeColuna(id)).append(" = ?");
+        Object[] parametros = new Object[atualizaveis.size() + 1];
+        for (int i = 0; i < atualizaveis.size(); i++) parametros[i] = valor(objeto, atualizaveis.get(i));
+        parametros[parametros.length - 1] = valor(objeto, id);
+        executar(sql.toString(), parametros);
+    }
+
+    public void criarTabela(Object objeto) {
+        Class<?> tipo = objeto.getClass();
+        List<Field> campos = camposPersistiveis(tipo);
+        if (campos.isEmpty()) throw new IllegalArgumentException("A classe nao possui campos persistiveis");
+        StringBuilder sql = new StringBuilder("CREATE TABLE IF NOT EXISTS ").append(nomeTabela(tipo)).append(" (");
         for (int i = 0; i < campos.size(); i++) {
+            if (i > 0) sql.append(", ");
             Field campo = campos.get(i);
-            if (campo.getName().equals("itens") || campo.getName().equals("mirando") || campo.getName().equals("id")) continue;
+            Column coluna = campo.getAnnotation(Column.class);
+            sql.append(nomeColuna(campo)).append(" ").append(tipoSql(campo, coluna));
+            if (ehId(campo)) sql.append(" PRIMARY KEY");
+            if (coluna != null && !coluna.nullable()) sql.append(" NOT NULL");
+            if (coluna != null && coluna.unique()) sql.append(" UNIQUE");
+            if (ehId(campo) && idAutoIncremental(campo) && tipoInteiro(campo.getType())) sql.append(" AUTOINCREMENT");
+        }
+        sql.append(")");
+        executar(sql.toString(), new Object[0]);
+    }
 
+    private Connection conectar() throws SQLException {
+        return DriverManager.getConnection(URL);
+    }
+
+    private int executar(String sql, Object[] parametros) {
+        try (Connection conexao = conectar(); PreparedStatement comando = conexao.prepareStatement(sql)) {
+            for (int i = 0; i < parametros.length; i++) comando.setObject(i + 1, parametros[i]);
+            return comando.executeUpdate();
+        } catch (SQLException e) {
+            throw new IllegalStateException("Erro ao executar SQL: " + sql, e);
+        }
+    }
+
+    private List<Field> camposPersistiveis(Class<?> tipo) {
+        List<Field> campos = new ArrayList<Field>();
+        for (Class<?> atual = tipo; atual != null && atual != Object.class; atual = atual.getSuperclass()) {
+            for (Field campo : atual.getDeclaredFields()) {
+                if (!Modifier.isStatic(campo.getModifiers()) && !campo.isSynthetic()
+                        && campo.getAnnotation(Transient.class) == null && tipoSqlSuportado(campo.getType())) campos.add(campo);
+            }
+        }
+        return campos;
+    }
+
+    private String nomeTabela(Class<?> tipo) {
+        Table tabela = tipo.getAnnotation(Table.class);
+        return identificador(tabela != null && !tabela.name().isEmpty() ? tabela.name() : tipo.getSimpleName().toLowerCase());
+    }
+
+    private String nomeColuna(Field campo) {
+        Column coluna = campo.getAnnotation(Column.class);
+        return identificador(coluna != null && !coluna.name().isEmpty() ? coluna.name() : campo.getName());
+    }
+
+    private String identificador(String valor) {
+        if (!valor.matches("[A-Za-z_][A-Za-z0-9_]*")) throw new IllegalArgumentException("Identificador SQL invalido: " + valor);
+        return valor;
+    }
+
+    private Field campoId(Class<?> tipo) {
+        for (Field campo : camposPersistiveis(tipo)) if (ehId(campo)) return campo;
+        throw new IllegalArgumentException("A classe " + tipo.getName() + " nao possui campo identificador");
+    }
+
+    private Field campoPorNome(Class<?> tipo, String nome) {
+        for (Field campo : camposPersistiveis(tipo)) if (campo.getName().equals(nome) || nomeColuna(campo).equals(nome)) return campo;
+        throw new IllegalArgumentException("Campo nao encontrado: " + nome);
+    }
+
+    private boolean ehId(Field campo) {
+        return campo.getAnnotation(Id.class) != null || campo.getName().equalsIgnoreCase("id");
+    }
+
+    private boolean idAutoIncremental(Field campo) {
+        Id id = campo.getAnnotation(Id.class);
+        return id == null || id.autoIncrement();
+    }
+
+    private String tipoSql(Field campo, Column coluna) {
+        if (coluna != null && !coluna.sqlType().isEmpty()) return coluna.sqlType();
+        Class<?> tipo = campo.getType();
+        if (tipo == String.class) return "VARCHAR(" + (coluna == null ? 255 : coluna.length()) + ")";
+        if (tipo == int.class || tipo == Integer.class || tipo == short.class || tipo == Short.class) return "INTEGER";
+        if (tipo == long.class || tipo == Long.class) return "BIGINT";
+        if (tipo == double.class || tipo == Double.class) return "DOUBLE";
+        if (tipo == float.class || tipo == Float.class) return "FLOAT";
+        if (tipo == boolean.class || tipo == Boolean.class) return "BOOLEAN";
+        if (tipo == LocalDate.class) return "DATE";
+        if (tipo == LocalDateTime.class) return "TIMESTAMP";
+        throw new IllegalArgumentException("Tipo nao suportado: " + tipo.getName());
+    }
+
+    private boolean tipoSqlSuportado(Class<?> tipo) {
+        return tipo == String.class || tipo == int.class || tipo == Integer.class || tipo == short.class || tipo == Short.class
+                || tipo == long.class || tipo == Long.class || tipo == double.class || tipo == Double.class
+                || tipo == float.class || tipo == Float.class || tipo == boolean.class || tipo == Boolean.class
+                || tipo == LocalDate.class || tipo == LocalDateTime.class;
+    }
+
+    private boolean tipoInteiro(Class<?> tipo) {
+        return tipo == int.class || tipo == Integer.class || tipo == long.class || tipo == Long.class;
+    }
+
+    private Object[] valores(Object objeto, List<Field> campos) {
+        Object[] valores = new Object[campos.size()];
+        for (int i = 0; i < campos.size(); i++) valores[i] = valor(objeto, campos.get(i));
+        return valores;
+    }
+
+    private Object valor(Object objeto, Field campo) {
+        try {
             campo.setAccessible(true);
-            try {
-                Object valor = campo.get(o);
-                if (valor instanceof String) {
-                    sql.append("'").append(valor).append("'");
-                } else {
-                    sql.append(valor);
-                }
-                if (i < campos.size() - 1) sql.append(", ");
-            } catch (IllegalAccessException e) {
-                e.printStackTrace();
-            }
-        }
-        
-        if (sql.toString().endsWith(", ")) sql.setLength(sql.length() - 2);
-        sql.append(");");
-
-        executarComando(sql.toString());
-    }
-    
-    public void selecionarTodosObjeto(Object o) {
-    	Class<?> clazz = o.getClass();
-        String nomeClasse = clazz.getSimpleName().toLowerCase();
-        String sql = "SELECT * FROM " + nomeClasse;
-        
-        System.out.println("\n--- Lendo a tabela: " + nomeClasse.toUpperCase() + " ---");
-        
-        try (java.sql.Connection conn = java.sql.DriverManager.getConnection("jdbc:sqlite:banco_rpg.db");
-                java.sql.Statement stmt = conn.createStatement();
-                java.sql.ResultSet rs = stmt.executeQuery(sql)) {
-               
-               // O MetaData descobre dinamicamente quais são as colunas da tabela
-               java.sql.ResultSetMetaData metaData = rs.getMetaData();
-               int numeroDeColunas = metaData.getColumnCount();
-               
-               // Laço para ler cada linha do banco de dados
-               while (rs.next()) {
-                   StringBuilder linha = new StringBuilder("Registro do Banco -> ");
-                   
-                   // Laço para ler cada coluna daquela linha
-                   for (int i = 1; i <= numeroDeColunas; i++) {
-                       linha.append(metaData.getColumnName(i)).append(": ").append(rs.getString(i));
-                       if (i < numeroDeColunas) linha.append(" | ");
-                   }
-                   System.out.println(linha.toString());
-               }
-               
-           } catch (Exception e) {
-               System.out.println("Erro na consulta: " + e.getMessage());
-           }
-    }
-    public void selecionarUmObjeto(Object o) {
-        Class<?> clazz = o.getClass();
-        String nomeClasse = clazz.getSimpleName().toLowerCase();
-        List<Field> campos = getAllFields(clazz);
-        Object idValor = null;
-        
-        for (Field campo : campos) {
-            if (campo.getName().equals("id")) {
-                campo.setAccessible(true);
-                try {
-                    idValor = campo.get(o);
-                } catch (IllegalAccessException e) {
-                    e.printStackTrace();
-                }
-                break;
-            }
-        }
-
-        String sql = "SELECT * FROM " + nomeClasse + " WHERE id = " + idValor + ";";
-        System.out.println("\n--- Buscando " + nomeClasse.toUpperCase() + " com ID: " + idValor + " ---");
-        
-        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:banco_rpg.db");
-             Statement stmt = conn.createStatement();
-             java.sql.ResultSet rs = stmt.executeQuery(sql)) {
-            
-            java.sql.ResultSetMetaData metaData = rs.getMetaData();
-            int numeroDeColunas = metaData.getColumnCount();
-            
-            if (rs.next()) {
-                StringBuilder linha = new StringBuilder("Encontrado -> ");
-                for (int i = 1; i <= numeroDeColunas; i++) {
-                    linha.append(metaData.getColumnName(i)).append(": ").append(rs.getString(i));
-                    if (i < numeroDeColunas) linha.append(" | ");
-                }
-                System.out.println(linha.toString());
-            } else {
-                System.out.println("Nenhum registro encontrado com o ID " + idValor);
-            }
-            
-        } catch (Exception e) {
-            System.out.println("Erro na consulta: " + e.getMessage());
+            Object valor = campo.get(objeto);
+            if (valor instanceof LocalDate) return java.sql.Date.valueOf((LocalDate) valor);
+            if (valor instanceof LocalDateTime) return Timestamp.valueOf((LocalDateTime) valor);
+            return valor;
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("Nao foi possivel acessar o campo " + campo.getName(), e);
         }
     }
-    
-    public void atualizarObjeto(Object o) {
-        Class<?> clazz = o.getClass();
-        String nomeClasse = clazz.getSimpleName().toLowerCase();
-        List<Field> campos = getAllFields(clazz);
-        
-        StringBuilder sql = new StringBuilder("UPDATE ");
-        sql.append(nomeClasse).append(" SET ");
-        
-        Object idValor = null;
 
+    private <T> T mapear(Class<T> tipo, ResultSet dados) throws SQLException {
+        try {
+            Constructor<T> construtor = tipo.getDeclaredConstructor();
+            construtor.setAccessible(true);
+            T objeto = construtor.newInstance();
+            Map<String, String> colunas = new HashMap<String, String>();
+            ResultSetMetaData meta = dados.getMetaData();
+            for (int i = 1; i <= meta.getColumnCount(); i++) colunas.put(meta.getColumnName(i).toLowerCase(), meta.getColumnName(i));
+            for (Field campo : camposPersistiveis(tipo)) {
+                String coluna = colunas.get(nomeColuna(campo).toLowerCase());
+                if (coluna != null) {
+                    campo.setAccessible(true);
+                    campo.set(objeto, converter(dados.getObject(coluna), campo.getType()));
+                }
+            }
+            return objeto;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("A classe " + tipo.getName() + " precisa de construtor sem argumentos", e);
+        }
+    }
+
+    private Object converter(Object valor, Class<?> tipo) {
+        if (valor == null) return null;
+        if (tipo == LocalDate.class && valor instanceof java.sql.Date) return ((java.sql.Date) valor).toLocalDate();
+        if (tipo == LocalDateTime.class && valor instanceof Timestamp) return ((Timestamp) valor).toLocalDateTime();
+        if ((tipo == boolean.class || tipo == Boolean.class) && valor instanceof Number) return ((Number) valor).intValue() != 0;
+        return valor;
+    }
+
+    private void adicionarNomes(StringBuilder sql, List<Field> campos) {
         for (int i = 0; i < campos.size(); i++) {
-            Field campo = campos.get(i);
-            String nomeCampo = campo.getName();
-            
-            campo.setAccessible(true);
-            try {
-                Object valor = campo.get(o);
-                
-                if (nomeCampo.equals("id")) {
-                    idValor = valor;
-                    continue; 
-                }
-                if (nomeCampo.equals("itens") || nomeCampo.equals("mirando")) {
-                    continue;
-                }
-                sql.append(nomeCampo).append(" = ");
-                if (valor instanceof String) {
-                    sql.append("'").append(valor).append("'");
-                } else {
-                    sql.append(valor);
-                }
-                sql.append(", ");
-                
-            } catch (IllegalAccessException e) {
-                e.printStackTrace();
-            }
+            if (i > 0) sql.append(", ");
+            sql.append(nomeColuna(campos.get(i)));
         }
-        
-     
-        if (sql.toString().endsWith(", ")) {
-            sql.setLength(sql.length() - 2);
-        }
-        
-       
-        sql.append(" WHERE id = ").append(idValor).append(";");
-        
-        executarComando(sql.toString());
     }
-    
-    public void removerObjeto(Object o) {
-        Class<?> clazz = o.getClass();
-        String nomeClasse = clazz.getSimpleName().toLowerCase();
-        List<Field> campos = getAllFields(clazz);
-        Object idValor = null;
 
-        for (Field campo : campos) {
-            if (campo.getName().equals("id")) {
-                campo.setAccessible(true);
-                try {
-                    idValor = campo.get(o);
-                } catch (IllegalAccessException e) {
-                    e.printStackTrace();
-                }
-                break;
-            }
+    private void adicionarParametros(StringBuilder sql, int quantidade) {
+        for (int i = 0; i < quantidade; i++) {
+            if (i > 0) sql.append(", ");
+            sql.append("?");
         }
-
-        String sql = "DELETE FROM " + nomeClasse + " WHERE id = " + idValor + ";";
-        executarComando(sql);
     }
-    
-    
-    private void executarComando(String sql) {
-        String url = "jdbc:sqlite:banco_rpg.db";
 
-        try (Connection conn = DriverManager.getConnection(url);
-             Statement stmt = conn.createStatement()) {
-            
-            stmt.executeUpdate(sql);
-            System.out.println("Salvo no SQLite: " + sql);
-            
-        } catch (Exception e) {
-            System.out.println("Erro ao salvar no banco: " + e.getMessage());
+    private void imprimirRegistros(String sql, String titulo, Object... parametros) {
+        try (Connection conexao = conectar(); PreparedStatement comando = conexao.prepareStatement(sql)) {
+            for (int i = 0; i < parametros.length; i++) comando.setObject(i + 1, parametros[i]);
+            try (ResultSet dados = comando.executeQuery()) {
+                ResultSetMetaData meta = dados.getMetaData();
+                while (dados.next()) {
+                    StringBuilder linha = new StringBuilder(titulo).append(" -> ");
+                    for (int i = 1; i <= meta.getColumnCount(); i++) {
+                        if (i > 1) linha.append(" | ");
+                        linha.append(meta.getColumnName(i)).append(": ").append(dados.getObject(i));
+                    }
+                    System.out.println(linha);
+                }
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Erro ao consultar registros", e);
         }
     }
 }

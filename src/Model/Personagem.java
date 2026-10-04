@@ -8,6 +8,7 @@ public abstract class Personagem {
 	protected Integer vida;
 	protected String nome;
 	protected Integer forca;
+	@Transient
 	private List<Item> itens;
 	
 	public Personagem(Integer vida, String nome, Integer forca) {
